@@ -18,8 +18,8 @@ These instructions will get you a copy of the project up and running on your loc
 Clone the repository locally:
 
 ```bash
-git clone https://github.com/username/project.git
-cd project
+git clone git@github.com:eqxDev/ecommerce-demo.git
+cd ecommerce-demo
 ```
 Install PHP dependencies:
 ```bash
