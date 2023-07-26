@@ -3,5 +3,5 @@
         <img src="{{$product->image_url}}" alt="{{$product->name}}" class="h-full w-full object-cover object-center group-hover:opacity-75">
     </div>
     <h3 class="mt-4 text-sm text-gray-700">{{$product->name}}</h3>
-    <p class="mt-1 text-lg font-medium text-gray-900">&pound;{{$product->price}}</p>
+    <p class="mt-1 text-lg font-medium text-gray-900">&pound;{{$min_variant_price}}</p>
 </a>

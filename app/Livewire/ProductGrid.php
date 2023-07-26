@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\ProductVariant;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -33,11 +34,17 @@ class ProductGrid extends Component
     {
         return \App\Models\Product::query()
             ->with('variants.colour', 'variants.size')
+            ->addSelect(['lowest_price' => ProductVariant::select('price')
+                ->whereColumn('product_id', 'products.id')
+                ->orderBy('price', 'asc')
+                ->limit(1)
+            ])
             ->when($this->sort === 'low-high', function ($query) {
-                $query->orderBy('price');
+                $query->orderBy('lowest_price');
             }, function ($query) {
-                $query->orderByDesc('price');
+                $query->orderByDesc('lowest_price');
             })
             ->paginate(12);
+
     }
 }
