@@ -75,7 +75,7 @@
                                                                     <h3>
                                                                         <a href="{{route('product.view', $item['variant']['product']['id'])}}" wire:navigate>{{$item['variant']['product']['name']}}</a>
                                                                     </h3>
-                                                                    <p class="ml-4">&pound;{{$item['variant']['product']['price']}}</p>
+                                                                    <p class="ml-4">&pound;{{$item['variant']['price']}}</p>
                                                                 </div>
                                                                 <p class="mt-1 text-sm text-gray-500">Size: {{$item['variant']['size']['name']}} &bull; Colour: {{$item['variant']['colour']['name']}}</p>
                                                             </div>

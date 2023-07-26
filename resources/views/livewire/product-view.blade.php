@@ -5,7 +5,13 @@
                 <div class="lg:col-span-5 lg:col-start-8">
                     <div class="flex justify-between">
                         <h1 class="text-xl font-medium text-gray-900">{{$product->name}}</h1>
-                        <p class="text-xl font-medium text-gray-900">&pound;{{$product->price}}</p>
+                        <p class="text-xl font-medium text-gray-900">
+                            @if($size_id == null || $colour_id == null)
+                                from &pound;{{$min_variant_price}}
+                            @else
+                            &pound;{{$variant_price}}
+                            @endif
+                        </p>
                     </div>
                 </div>
 

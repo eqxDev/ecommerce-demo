@@ -17,6 +17,8 @@ class ProductView extends Component
     public $colour_id;
     public $size_id;
 
+    public $min_variant_price = 0;
+    public $variant_price = 0;
     public $colour_to_sizes_mapping = [];
     public $size_to_colours_mapping = [];
     public $colour_options = [];
@@ -49,6 +51,11 @@ class ProductView extends Component
             ];
         })->sort(fn($a, $b) => $a['size_id'] <=> $b['size_id'])
             ->keyBy('size_id')->unique()->toArray();
+
+        $min_price_variant = $this->product->variants()->orderBy('price', 'asc')->first();
+        if ($min_price_variant) {
+            $this->min_variant_price = $min_price_variant->price;
+        }
     }
 
     public function setColour($id)
@@ -74,6 +81,8 @@ class ProductView extends Component
             ])->first();
             $this->size_options[$key]['disabled'] = !in_array($size_option['size_id'], $allowed_sizes) || ($variant && $variant->stock == 0);
         }
+
+        $this->updatePrice();
     }
 
     public function setSize($id)
@@ -98,6 +107,23 @@ class ProductView extends Component
                 'size_id' => $this->size_id,
             ])->first();
             $this->colour_options[$key]['disabled'] = !in_array($colour_option['colour_id'], $allowed_colours) || ($variant && $variant->stock == 0);
+        }
+
+        $this->updatePrice();
+    }
+
+    private function updatePrice()
+    {
+        if ($this->size_id && $this->colour_id) {
+            $variant = $this->product->variants()->where([
+                'colour_id' => $this->colour_id,
+                'size_id' => $this->size_id,
+            ])->first();
+
+            // Update the variant price
+            if ($variant) {
+                $this->variant_price = $variant->price;
+            }
         }
     }
 

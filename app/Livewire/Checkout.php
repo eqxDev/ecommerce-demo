@@ -52,7 +52,7 @@ class Checkout extends Component
                 'variant' => $data[$variant_id],
                 'quantity' => $quantity,
             ];
-            $this->subtotal += $data[$variant_id]['product']['price'] * $quantity;
+            $this->subtotal += $data[$variant_id]['price'] * $quantity;
         }
 
         $this->vat = round($this->subtotal * 0.2, 2);
@@ -132,7 +132,7 @@ class Checkout extends Component
                 $order->items()->create([
                     'product_variant_id' => $item['variant']['id'],
                     'quantity' => $item['quantity'],
-                    'price' => $item['variant']['product']['price'],
+                    'price' => $variant->price,
                 ]);
             }
 

@@ -22,7 +22,7 @@
                             <div>
                                 <p class="flex-none text-xs">Qty: {{$item['quantity']}}</p>
                                 <p class="flex-none text-base font-medium">
-                                    &pound;{{$item['variant']['product']['price']}}</p>
+                                    &pound;{{$item['variant']['price']}}</p>
                             </div>
                         </li>
                     @endforeach

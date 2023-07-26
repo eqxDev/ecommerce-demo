@@ -47,7 +47,7 @@ class Basket extends Component
                 'variant' => $data[$variant_id],
                 'quantity' => $quantity,
             ];
-            $this->subtotal +=  $data[$variant_id]['product']['price'] * $quantity;
+            $this->subtotal +=  $data[$variant_id]['price'] * $quantity;
         }
 
         $this->items = $items;
