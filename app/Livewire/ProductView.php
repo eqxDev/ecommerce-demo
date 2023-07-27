@@ -8,7 +8,6 @@ use Auth;
 use Cache;
 use Livewire\Component;
 use Session;
-use Str;
 use function Livewire\of;
 
 class ProductView extends Component
@@ -28,110 +27,67 @@ class ProductView extends Component
 
     public function mount()
     {
-        $this->mapVariant();
-        $this->generateColourAndSizeOptions();
-        $this->setMinVariantPrice();
-    }
+        $this->colour_to_sizes_mapping = [];
+        $this->size_to_colours_mapping = [];
 
-    public function mapVariant()
-    {
         foreach ($this->product->variants as $variant) {
             $this->colour_to_sizes_mapping[$variant->colour_id][] = $variant->size_id;
             $this->size_to_colours_mapping[$variant->size_id][] = $variant->colour_id;
         }
-    }
 
-    public function generateColourAndSizeOptions()
-    {
-        $this->colour_options = $this->product->variants->map(fn($data) => [
-            'colour_id' => $data->colour_id,
-            'name' => $data->colour->name,
-            'hex' => $data->colour->hex,
-            'disabled' => $data->stock == 0,
-        ])->keyBy('colour_id')->unique()->toArray();
+        $this->colour_options = $this->product->variants->map(function ($data) {
+            return [
+                'colour_id' => $data->colour_id,
+                'name' => $data->colour->name,
+                'hex' => $data->colour->hex,
+                'disabled' => $data->stock == 0,
+            ];
+        })->keyBy('colour_id')->unique()->toArray();
 
-        $this->size_options = $this->product->variants->map(fn($data) => [
-            'size_id' => $data->size_id,
-            'name' => $data->size->name,
-            'disabled' => $data->stock == 0,
-        ])->sort(fn($a, $b) => $a['size_id'] <=> $b['size_id'])
+        $this->size_options = $this->product->variants->map(function ($data) {
+            return [
+                'size_id' => $data->size_id,
+                'name' => $data->size->name,
+                'disabled' => $data->stock == 0,
+            ];
+        })->sort(fn($a, $b) => $a['size_id'] <=> $b['size_id'])
             ->keyBy('size_id')->unique()->toArray();
-    }
 
-    public function setMinVariantPrice()
-    {
         $min_price_variant = $this->product->variants()->orderBy('price', 'asc')->first();
         if ($min_price_variant) {
             $this->min_variant_price = $min_price_variant->price;
         }
     }
 
-    public function updateOptionsAvailability($selectedId, $variantDimension, $options, $mapping)
+    public function setColour($id)
     {
-        \Validator::validate(['id' => $selectedId], ['id' => 'required|exists:' . Str::plural($variantDimension) . ',id']);
-
-        if ($options[$selectedId]['disabled']) {
+        if (!$this->validateVariantId($id, 'colours')) {
             return;
         }
 
-        $allowed_variants = $mapping[$selectedId] ?? [];
-        foreach ($options as $key => $option) {
-            $variant = $this->product->variants()->where([
-                $variantDimension . '_id' => $selectedId,
-                $this->oppositeDimension($variantDimension) . '_id' => $option[$this->oppositeDimension($variantDimension) . '_id'],
-            ])->first();
-            $options[$key]['disabled'] = !in_array($option[$this->oppositeDimension($variantDimension) . '_id'], $allowed_variants) || ($variant && $variant->stock == 0);
-        }
-
-        $this->updateVariantPriceAndAvailability();
-    }
-
-    public function setColour($id)
-    {
         $this->colour_id = $id;
-        $this->updateOptionsAvailability($id, 'colour', $this->size_options, $this->colour_to_sizes_mapping);
+        $this->filterSizeOptions();
+        $this->updateVariantPriceAndAvailability();
     }
 
     public function setSize($id)
     {
-        $this->size_id = $id;
-        $this->updateOptionsAvailability($id, 'size', $this->colour_options, $this->size_to_colours_mapping);
-    }
+        if (!$this->validateVariantId($id, 'sizes')) {
+            return;
+        }
 
-    public function oppositeDimension($dimension)
-    {
-        return $dimension == 'size' ? 'colour' : 'size';
+        $this->size_id = $id;
+        $this->filterColourOptions();
+        $this->updateVariantPriceAndAvailability();
     }
 
     public function updateVariantPriceAndAvailability()
     {
-        if ($this->colour_id !== null && $this->size_id !== null) {
-            $variant = $this->product->variants()
-                ->where([
-                    'colour_id' => $this->colour_id,
-                    'size_id' => $this->size_id,
-                ])
-                ->first();
+        $variant = $this->findVariant();
 
-            if ($variant) {
-                $this->variant_price = $variant->price;
-
-                // Using the function getCurrentBasketQuantity for basket quantity retrieval
-                $currentQuantity = $this->getCurrentBasketQuantity($variant);
-                $this->variantNotAvailable = ($currentQuantity + 1 > $variant->stock);
-            }
-        }
-    }
-
-    public function getCurrentBasketQuantity($variant)
-    {
-        if (Auth::check()) {
-            $basket = Basket::firstOrCreate(['user_id' => Auth::id()]);
-            $items = $basket->items ?? [];
-            return $items[$variant->id] ?? 0;
-        } else {
-            $basket = Session::get('basket', []);
-            return $basket[$variant->id] ?? 0;
+        if ($variant) {
+            $this->variant_price = $variant->price;
+            $this->variantNotAvailable = $this->isVariantNotAvailable($variant);
         }
     }
 
@@ -144,13 +100,9 @@ class ProductView extends Component
 
         // Start cache lock
         $lock = Cache::lock('product_variant_' . $this->product->id . '_' . $this->colour_id . '_' . $this->size_id, 10);
+
         if ($lock->get()) {
-            $variant = $this->product->variants()
-                ->where([
-                    'colour_id' => $this->colour_id,
-                    'size_id' => $this->size_id,
-                ])
-                ->first();
+            $variant = $this->findVariant();
 
             // Check stock before adding to cart
             if ($variant->stock <= 0) {
@@ -160,53 +112,117 @@ class ProductView extends Component
             }
 
             $this->updateVariantPriceAndAvailability();
-            // Using the function updateBasket for updating basket
+
+            if ($this->variantNotAvailable) {
+                session()->flash('error', 'The quantity you are trying to add exceeds the available stock.');
+                $lock->release();
+                return;
+            }
 
             $this->updateBasket($variant);
+            $this->dispatch('basketUpdated');
 
             // Release lock
             $lock->release();
         }
     }
 
-    public function updateBasket($variant)
+    private function validateVariantId($id, $variantType)
     {
-        // if the total quantity exceeds the stock, don't proceed
+        \Validator::validate([
+            'id' => $id,
+        ], [
+            'id' => 'required|exists:' . $variantType . ',id',
+        ]);
 
-        if ($this->variantNotAvailable) {
-
-            session()->flash('error', 'The quantity you are trying to add exceeds the available stock.');
-            return;
+        if ($variantType === 'colours' && $this->colour_options[$id]['disabled']) {
+            return false;
         }
 
+        if ($variantType === 'sizes' && $this->size_options[$id]['disabled']) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function filterSizeOptions()
+    {
+        $allowed_sizes = $this->colour_to_sizes_mapping[$this->colour_id] ?? [];
+        $this->filterOptions($this->size_options, $allowed_sizes, 'size_id');
+    }
+
+    private function filterColourOptions()
+    {
+        $allowed_colours = $this->size_to_colours_mapping[$this->size_id] ?? [];
+        $this->filterOptions($this->colour_options, $allowed_colours, 'colour_id');
+    }
+
+    private function filterOptions(&$options, $allowedOptions, $optionId)
+    {
+        foreach ($options as $key => $option) {
+            $variant = $this->product->variants()->where([
+                'colour_id' => $this->colour_id,
+                'size_id' => $option[$optionId],
+            ])->first();
+            $options[$key]['disabled'] = !in_array($option[$optionId], $allowedOptions) || ($variant && $variant->stock == 0);
+        }
+    }
+
+    private function findVariant()
+    {
+        return $this->product->variants()
+            ->where([
+                'colour_id' => $this->colour_id,
+                'size_id' => $this->size_id,
+            ])
+            ->first();
+    }
+
+    private function isVariantNotAvailable($variant)
+    {
+        $quantity = 1;
+        $basket = $this->getBasket();
+        $currentQuantity = $basket[$variant->id] ?? 0;
+
+        return ($currentQuantity + $quantity > $variant->stock);
+    }
+
+    private function getBasket()
+    {
+        return Auth::check() ?
+            Basket::firstOrCreate(['user_id' => Auth::id()])->items :
+            Session::get('basket', []);
+    }
+
+    private function updateBasket($variant)
+    {
         $quantity = 1; // set this to the quantity being added to the cart
+        $basket = $this->getBasket();
+
+        if (isset($basket[$variant->id])) {
+            $basket[$variant->id] += $quantity;
+        } else {
+            $basket[$variant->id] = $quantity;
+        }
 
         if (Auth::check()) {
-            // Update the basket in the database for logged in users
-            $basket = Basket::firstOrCreate(['user_id' => Auth::id()]);
-            $basketItems = $basket->items ?? [];
-            if (isset($basketItems[$variant->id])) {
-                $basketItems[$variant->id] += $quantity;
-            } else {
-                $basketItems[$variant->id] = $quantity;
-            }
-            $basket->items = $basketItems;
-            $basket->save();
+            $this->updateBasketInDB($basket);
         } else {
-            // Update the session for guest users
-            $basket = Session::get('basket', []);
-            if (isset($basket[$variant->id])) {
-                $basket[$variant->id] += $quantity;
-            } else {
-                $basket[$variant->id] = $quantity;
-            }
             Session::put('basket', $basket);
         }
-        $this->dispatch('basketUpdated');
+    }
+
+    private function updateBasketInDB($basketItems)
+    {
+        $basket = Basket::firstOrCreate(['user_id' => Auth::id()]);
+        $basket->items = $basketItems;
+        $basket->save();
     }
 
     public function render()
     {
-        return view('livewire.product-view');
+        return view('livewire.product-view')
+            ->title($this->product->name);
     }
 }
