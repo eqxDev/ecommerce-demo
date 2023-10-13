@@ -38,14 +38,14 @@
                             <a href="/" wire:navigate>
                                 <span class="sr-only">Your Company</span>
                                 <img class="h-8 w-auto"
-                                     src="https://via.placeholder.com/200x80.png/f6f6f6?text=logo" alt="">
+                                     src="https://mastrum.com/media/logo/stores/1/email-logo.png" alt="">
                             </a>
                         </div>
 
                         <!-- Logo (lg-) -->
                         <a href="/" wire:naviate class="lg:hidden">
                             <span class="sr-only">Your Company</span>
-                            <img  src="https://via.placeholder.com/200x80.png/f6f6f6?text=logo" alt=""
+                            <img  src="https://mastrum.com/media/logo/stores/1/email-logo.png" alt=""
                                  class="h-8 w-auto">
                         </a>
 
